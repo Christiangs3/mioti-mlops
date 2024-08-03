@@ -4,7 +4,7 @@ Datos de entrada del modelo:
        "property_type_House", "property_type_Other", "bedrooms", "bathrooms"]
 
 {
-    "review_scores_rating": int,
+    "review_scores_rating": float,
     "room_type": str (Entire home/apt, Shared room, Private room),
     "property_type": str (Apartment, Bed & Breakfast, Condominium, House, Other),
     "bedrooms": int,
