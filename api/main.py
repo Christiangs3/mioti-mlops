@@ -1,134 +1,121 @@
 """
 Datos de entrada del modelo:
-['age', 'hypertension', 'heart_disease', 'avg_glucose_level', 'bmi',
-       'gender_Male', 'gender_Other', 'ever_married_Yes',
-       'work_type_Never_worked', 'work_type_Private',
-       'work_type_Self-employed', 'work_type_children', 'Residence_type_Urban',
-       'smoking_status_formerly smoked', 'smoking_status_never smoked',
-       'smoking_status_smokes']
+["review_scores_rating", "room_type_Shared room", "room_type_Private room", "property_type_Apartment", "property_type_Condominium",
+       "property_type_House", "property_type_Other", "bedrooms", "bathrooms"]
 
 {
-    'age': int,
-    'hypertension': int (1/0),
-    'gender': str (male/female/other),
-    'ever_married_Yes': int (1/0),
-    'heart_disease': int (1/0),
-    'avg_glucose_level': int,
-    'bmi': int,
-    'work_type': str (never worked/private/self-employed/children)
-    'residence_type': str (urban)
-    'smoking_status': str (formerly smoked/never smoked/smokes)
+    "review_scores_rating": int,
+    "room_type": str (Entire home/apt, Shared room, Private room),
+    "property_type": str (Apartment, Bed & Breakfast, Condominium, House, Other),
+    "bedrooms": int,
+    "bathrooms": int,
 }
 
 {
-    "age": 33,
-    "hypertension": 1,
-    "gender": "male",
-    "ever_married_Yes": 1,
-    "heart_disease": 0,
-    "avg_glucose_level": 70,
-    "bmi": 29,
-    "work_type": "private",
-    "residence_type": "urban",
-    "smoking_status": "never smoked"
+    "review_scores_rating": 70,
+    "room_type": "Shared room",
+    "property_type": "Apartment",
+    "bedrooms": 2,
+    "bathrooms": 1
 }
 
 {
-    "age": 75,
-    "hypertension": 1,
-    "gender": "male",
-    "ever_married_Yes": 1,
-    "heart_disease": 1,
-    "avg_glucose_level": 120,
-    "bmi": 29,
-    "work_type": "private",
-    "residence_type": "urban",
-    "smoking_status": "never smoked"
+    "review_scores_rating": 95,
+    "room_type": "Entire home/apt",
+    "property_type": "House",
+    "bedrooms": 5,
+    "bathrooms": 2
 }
 
 """
-from fastapi import FastAPI
+from typing import Annotated
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel
 import joblib
 import pandas as pd
 
-model = joblib.load('model.sav')
+model = joblib.load("random_forest_model.joblib")
 
 app = FastAPI()
 
-def gender_encoding(message):
-    gender_encoded = {'gender_Male': 0, 'gender_Other': 0}
-    if message['gender'].lower() == 'male':
-        gender_encoded['gender_Male'] = 1
-    elif message['gender'].lower() == 'other':
-        gender_encoded['gender_Other'] = 1
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-    del message['gender']
+class PredictionRequest(BaseModel):
+    review_scores_rating: float
+    room_type: str
+    property_type: str
+    bedrooms: int
+    bathrooms: int
 
-    return message.update(gender_encoded)
+def room_type_encoding(message):
+    room_type_encoded = {"room_type_Shared room": 0, "room_type_Private room": 0}
+    if message["room_type"].lower() == "shared room":
+        room_type_encoded["room_type_Shared room"] = 1
+    elif message["room_type"].lower() == "private room":
+        room_type_encoded["room_type_Private room"] = 1
 
-def work_type_encoding(message):
-    work_type_encoded = {'work_type_Never_worked': 0, 'work_type_Private': 0,
-                         'work_type_Self-employed': 0, 'work_type_children': 0}
+    del message["room_type"]
 
-    if message['work_type'].lower() == 'never worked':
-        work_type_encoded['work_type_Never_worked'] = 1
-    elif message['work_type'].lower() == 'private':
-        work_type_encoded['work_type_Private'] = 1
-    elif message['work_type'].lower() == 'self-employed':
-        work_type_encoded['work_type_Self-employed'] = 1
-    elif message['work_type'].lower() == 'children':
-        work_type_encoded['work_type_children'] = 1
+    return message.update(room_type_encoded)
 
-    del message['work_type']
+def property_type_encoding(message):
+    property_type_encoded = {"property_type_Bed_&_Breakfast": 0, "property_type_Condominium": 0,
+                         "property_type_House": 0, "property_type_Other": 0}
 
-    return message.update(work_type_encoded)
+    if message["property_type"].lower() == "bed & breakfast":
+        property_type_encoded["property_type_Bed_&_Breakfast"] = 1
+    elif message["property_type"].lower() == "condominium":
+        property_type_encoded["property_type_Condominium"] = 1
+    elif message["property_type"].lower() == "house":
+        property_type_encoded["property_type_House"] = 1
+    elif message["property_type"].lower() == "other":
+        property_type_encoded["property_type_Other"] = 1
 
-def residence_encoding(message):
-    residence_encoded = {'Residence_type_Urban': 0}
-    if message['residence_type'] == 'urban':
-        residence_encoded['Residence_type_Urban'] = 1
+    del message["property_type"]
 
-    del message['residence_type']
-
-    return message.update(residence_encoded)
-
-def smoking_encoding(message):
-    smoking_encoded = {'smoking_status_formerly smoked': 0, 'smoking_status_never smoked': 0,
-                       'smoking_status_smokes': 0}
-    if message['smoking_status'] == 'formerly smoked':
-        smoking_encoded['smoking_status_formerly smoked'] = 1
-    elif message['smoking_status'] == 'never smoked':
-        smoking_encoded['smoking_status_never smoked'] = 1
-    elif message['smoking_status'] == 'smokes':
-        smoking_encoded['smoking_status_smokes'] = 1
-
-    del message['smoking_status']
-
-    return message.update(smoking_encoded)
+    return message.update(property_type_encoded)
 
 def data_prep(message):
-    gender_encoding(message)
-    work_type_encoding(message)
-    residence_encoding(message)
-    smoking_encoding(message)
+    room_type_encoding(message)
+    property_type_encoding(message)
 
     return pd.DataFrame(message, index=[0])
 
 
-def heart_prediction(message: dict):
-    # Data Prep
+def price_prediction(message: dict):
     data = data_prep(message)
     label = model.predict(data)[0]
-    return {'label': int(label)}
+    return {"label":label}
 
-
-
-@app.get('/')
+@app.get("/")
 def main():
-    return {'message': 'Hola'}
+    return {"message": "Hola"}
 
-@app.post('/heart-attack-prediction/')
-def predict_heart_attack(message: dict):
-    model_pred = heart_prediction(message)
-    # return {'prediction': model_pred}
-    return model_pred
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    username = form_data.username
+    password = form_data.password
+    if username == "user" and password == "password":
+        return {"access_token": "mock_token", "token_type": "bearer"}
+    raise HTTPException(status_code=400, detail="Invalid credentials")
+
+@app.post("/price-prediction/")
+async def predict_price(message: dict, token: Annotated[str, Depends(oauth2_scheme)]):
+    try:
+        data = data_prep(message)
+
+        # Verifica que el número de características sea el esperado
+        expected_features = model.n_features_in_
+        if data.shape[1] != expected_features:
+            raise ValueError(f"El modelo espera {expected_features} características, pero recibió {data.shape[1]}.")
+
+        prediction = model.predict(data)[0]
+
+        return {"prediction": prediction}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except KeyError as ke:
+        raise HTTPException(status_code=400, detail=f"Falta la característica: {str(ke)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
